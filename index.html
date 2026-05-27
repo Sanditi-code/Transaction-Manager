@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Tracker Pro</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  padding:15px;
+}
+
+.container{max-width:900px;margin:auto;}
+
+h1{text-align:center}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:10px;
+}
+
+.card{
+  padding:15px;
+  border-radius:12px;
+  text-align:center;
+}
+
+.green{background:#14532d;}
+.red{background:#7f1d1d;}
+.blue{background:#1e293b;}
+
+.box{
+  background:#1e293b;
+  padding:15px;
+  border-radius:12px;
+  margin-top:15px;
+}
+
+input, select, button{
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+button{
+  background:#22c55e;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.transaction{
+  background:#334155;
+  padding:10px;
+  margin-top:8px;
+  border-radius:10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.btns{display:flex;gap:5px;}
+
+.edit{background:#3b82f6;padding:6px 10px;border:none;color:white;border-radius:6px;cursor:pointer;}
+.delete{background:red;padding:6px 10px;border:none;color:white;border-radius:6px;cursor:pointer;}
+
+.warning{
+  background:red;
+  padding:10px;
+  border-radius:8px;
+  margin-top:10px;
+  display:none;
+}
+
+canvas{
+  max-width:300px;
+  margin:auto;
+  display:block;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>💰 Expense Tracker</h1>
+
+<div class="grid">
+
+<div class="card green">
+<h3>Income</h3>
+<p id="income">৳0</p>
+</div>
+
+<div class="card red">
+<h3>Expense</h3>
+<p id="expense">৳0</p>
+</div>
+
+<div class="card blue">
+<h3>Balance</h3>
+<p id="balance">৳0</p>
+</div>
+
+</div>
+
+<div class="box">
+
+<h3>Add Transaction</h3>
+
+<select id="type" onchange="updateCategories()">
+<option value="">Type</option>
+<option value="income">Income</option>
+<option value="expense">Expense</option>
+</select>
+
+<input id="amount" type="number" placeholder="Amount">
+
+<select id="category">
+<option value="">Select Category</option>
+</select>
+
+<input id="date" type="date">
+<input id="note" placeholder="Note">
+
+<button onclick="add()">Add</button>
+
+</div>
+
+<div class="box">
+<h3>Budget</h3>
+<input id="budget" type="number" placeholder="Set Budget">
+<button onclick="setBudget()">Save Budget</button>
+<div class="warning" id="warn">⚠ Budget Exceeded!</div>
+</div>
+
+<div class="box">
+<h3>Search</h3>
+<input id="search" placeholder="Search...">
+
+<h3 style="margin-top:10px;">Month</h3>
+<input id="month" type="month">
+</div>
+
+<div class="box">
+<h3>Transactions</h3>
+<div id="list"></div>
+</div>
+
+<div class="box">
+<h3>📊 Chart</h3>
+<canvas id="chart"></canvas>
+</div>
+
+</div>
+
+<script>
+
+let data = JSON.parse(localStorage.getItem("data")) || [];
+let budget = localStorage.getItem("budget") || 0;
+let editIndex = -1;
+
+/* ---------------- CATEGORIES ---------------- */
+
+const expenseCategories = [
+  "Daily Expense",
+  "Electricity & Gas",
+  "Wifi & Dish",
+  "Mudimal",
+  "ETC",
+  "Salary",
+  "Puja",
+  "Special Expense",
+  "Education",
+  "Holiday",
+  "Doctor & Court",
+  "Loan"
+];
+
+const incomeCategories = [
+  "DBBL",
+  "Jilani",
+  "Dipak Das",
+  "Elius",
+  "Vdb Bank",
+  "Bachelor",
+  "Rupak Das",
+  "Brac",
+  "Dulal Mia",
+  "Liton Bardan",
+  "Anjan Das",
+  "Opu Shaha",
+  "Soikot Das",
+  "Minto Datta",
+  "Dutala Bank",
+  "Tipu Miah",
+  "Ahmad Mia",
+  "Ferdous Mia",
+  "Jahangir",
+  "Selim Mia",
+  "Pitha",
+  "Abdul Kha",
+  "Afroge Mia",
+  "Shamshu",
+  "Ibrahim",
+  "Lutfur",
+  "Abdulla",
+  "Nepal",
+  "Salary",
+  "Others"
+];
+
+/* ---------------- CATEGORY UPDATE ---------------- */
+
+function updateCategories() {
+  let type = document.getElementById("type").value;
+  let cat = document.getElementById("category");
+
+  cat.innerHTML = `<option value="">Select Category</option>`;
+
+  let list = [];
+
+  if (type === "expense") list = expenseCategories;
+  else if (type === "income") list = incomeCategories;
+
+  list.forEach(c => {
+    let option = document.createElement("option");
+    option.value = c;
+    option.textContent = c;
+    cat.appendChild(option);
+  });
+}
+
+/* ---------------- CORE FUNCTIONS ---------------- */
+
+function save(){
+localStorage.setItem("data",JSON.stringify(data));
+}
+
+function add(){
+
+let obj = {
+type:document.getElementById("type").value,
+amount:+document.getElementById("amount").value,
+category:document.getElementById("category").value,
+date:document.getElementById("date").value,
+note:document.getElementById("note").value
+};
+
+if(editIndex !== -1){
+data[editIndex]=obj;
+editIndex=-1;
+}else{
+data.push(obj);
+}
+
+save();
+render();
+}
+
+function del(i){
+data.splice(i,1);
+save();
+render();
+}
+
+function edit(i){
+
+let t=data[i];
+
+document.getElementById("type").value=t.type;
+updateCategories();
+setTimeout(()=>{
+document.getElementById("category").value=t.category;
+},50);
+
+document.getElementById("amount").value=t.amount;
+document.getElementById("date").value=t.date;
+document.getElementById("note").value=t.note;
+
+editIndex=i;
+}
+
+function setBudget(){
+budget=document.getElementById("budget").value;
+localStorage.setItem("budget",budget);
+render();
+}
+
+/* ---------------- RENDER ---------------- */
+
+function render(){
+
+let income=0, expense=0;
+
+let list=document.getElementById("list");
+list.innerHTML="";
+
+let search=document.getElementById("search").value.toLowerCase();
+let month=document.getElementById("month").value;
+
+let filtered = data.filter(t=>{
+
+let matchSearch =
+t.category.toLowerCase().includes(search) ||
+t.note.toLowerCase().includes(search) ||
+t.type.toLowerCase().includes(search) ||
+t.date.includes(search);
+
+let matchMonth = month ? t.date.includes(month) : true;
+
+return matchSearch && matchMonth;
+});
+
+filtered.forEach((t)=>{
+
+if(t.type==="income") income+=t.amount;
+else expense+=t.amount;
+
+let realIndex = data.indexOf(t);
+
+let div=document.createElement("div");
+div.className="transaction";
+
+div.innerHTML=`
+<div>
+<b>${t.category}</b><br>
+৳${t.amount} | ${t.date}<br>
+<small>${t.note}</small>
+</div>
+
+<div class="btns">
+<button class="edit" onclick="edit(${realIndex})">Edit</button>
+<button class="delete" onclick="del(${realIndex})">X</button>
+</div>
+`;
+
+list.appendChild(div);
+
+});
+
+document.getElementById("income").innerText="৳"+income;
+document.getElementById("expense").innerText="৳"+expense;
+document.getElementById("balance").innerText="৳"+(income-expense);
+
+document.getElementById("warn").style.display =
+(budget && expense>budget) ? "block" : "none";
+
+drawChart(income,expense);
+
+}
+
+/* ---------------- CHART ---------------- */
+
+function drawChart(i, e){
+
+const ctx = document.getElementById("chart").getContext("2d");
+
+if(window.chart instanceof Chart){
+  window.chart.destroy();
+}
+
+window.chart = new Chart(ctx, {
+  type: "doughnut",
+  data: {
+    labels: ["Income", "Expense"],
+    datasets: [{
+      data: [i, e],
+      backgroundColor: ["#22c55e", "#ef4444"],
+      borderWidth: 1
+    }]
+  }
+});
+
+}
+
+/* ---------------- EVENTS ---------------- */
+
+document.getElementById("search").addEventListener("input",render);
+document.getElementById("month").addEventListener("change",render);
+
+render();
+
+</script>
+
+</body>
+</html>
